@@ -3,7 +3,7 @@
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta charset="UTF-8">
-    <title>Rastreamento Keven IA</title>
+    <title>Rastreamento Keven IA Pro</title>
     <style>
         body { margin: 0; background: black; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00FF00; overflow: hidden; height: 100vh; }
         
@@ -18,17 +18,19 @@
         .btn-iniciar:active { background: #00FF00; color: black; }
 
         /* Tela de Carregamento */
-        #tela-carregamento { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 99; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        #tela-carregamento { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 99; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; }
         .spinner { width: 60px; height: 60px; border: 5px solid #111; border-top: 5px solid #00FF00; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        #texto-carregamento { font-size: 18px; letter-spacing: 1px; line-height: 1.5; }
 
-        /* Interface do Menu de Três Pontinhos (...) */
+        /* Interface do Menu (...) */
         .menu-container { position: fixed; top: 15px; right: 15px; z-index: 20; }
         .btn-menu { background: rgba(0,0,0,0.6); border: 1px solid #00FF00; color: #00FF00; font-size: 24px; padding: 5px 15px; border-radius: 10px; cursor: pointer; font-weight: bold; }
-        .menu-opcoes { position: absolute; top: 45px; right: 0; background: rgba(10,10,10,0.95); border: 1px solid #00FF00; border-radius: 8px; display: none; flex-direction: column; min-width: 160px; box-shadow: 0 0 15px black; }
-        .menu-opcoes button { background: transparent; border: none; color: #00FF00; padding: 12px 15px; text-align: left; font-size: 16px; cursor: pointer; border-bottom: 1px solid #222; }
+        .menu-opcoes { position: absolute; top: 45px; right: 0; background: rgba(10,10,10,0.95); border: 1px solid #00FF00; border-radius: 8px; display: none; flex-direction: column; min-width: 200px; box-shadow: 0 0 15px black; }
+        .menu-opcoes button { background: transparent; border: none; color: #00FF00; padding: 12px 15px; text-align: left; font-size: 15px; cursor: pointer; border-bottom: 1px solid #222; }
         .menu-opcoes button:last-child { border-bottom: none; }
         .menu-opcoes button:active { background: #00FF00; color: black; }
+        .menu-secao { background: #222; color: #888; font-size: 11px; padding: 5px 15px; font-weight: bold; text-transform: uppercase; }
 
         /* Central da Mira de Enfeite */
         #mira { position: fixed; top: 50%; left: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); border: 2px dashed rgba(0, 255, 0, 0.4); border-radius: 50%; z-index: 5; pointer-events: none; display: none; }
@@ -54,59 +56,92 @@
 
     <div id="tela-carregamento">
         <div class="spinner"></div>
-        <div style="font-size: 18px; letter-spacing: 1px;">carregando rastreamento de Keven...</div>
+        <div id="texto-carregamento">carregando rastreamento de Keven...</div>
     </div>
 
     <div class="menu-container" id="container-menu" style="display: none;">
         <button class="btn-menu" onclick="alternarMenu()">...</button>
         <div class="menu-opcoes" id="menu-opcoes">
-            <button onclick="mudarCamera('user')">Câmera Frontal</button>
-            <button onclick="mudarCamera('environment')">Câmera Traseira</button>
-            <button onclick="abrirSobre()">Sobre Nós</button>
+            <div class="menu-secao">Modo de IA</div>
+            <button onclick="mudarModoIA('multi')">⚡ Multi-Alvos (Carro/Cão/Man)</button>
+            <button onclick="mudarModoIA('unico')">👤 Alvo Único + Esqueleto</button>
+            <div class="menu-secao">Lentes</div>
+            <button onclick="mudarCamera('user')">📷 Câmera Frontal</button>
+            <button onclick="mudarCamera('environment')">📷 Câmera Traseira</button>
+            <div class="menu-secao">Info</div>
+            <button onclick="abrirSobre()">ℹ️ Sobre Nós</button>
         </div>
     </div>
 
-    <video id="webcam" autoplay playsinline mute></video>
+    <video id="webcam" autoplay playsinline muted></video>
     <canvas id="output"></canvas>
     <div id="mira"></div>
 
-    <div id="status-deteccao" id="status-texto">Aguardando dados...</div>
+    <div id="status-deteccao">Aguardando dados...</div>
 
     <div id="modal-sobre">
         <div class="conteudo-sobre">
             <button class="btn-fechar" onclick="fecharSobre()">×</button>
             <h2>Sobre o Projeto</h2>
             <p>A origem deste sistema de rastreamento é de <strong>Keven Manuel</strong>.</p>
-            <p>Desenvolvido como um rastreamento feito com inteligência artificial precisa de última geração, capaz de identificar simultaneamente múltiplos alvos, incluindo humanos, veículos, animais e objetos comuns em tempo real diretamente pelo navegador.</p>
+            <p>Desenvolvido como um rastreamento feito com inteligência artificial precisa de última geração, capaz de identificar alvos em tempo real diretamente pelo navegador.</p>
         </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
     <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
 
     <script>
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('output');
         const ctx = canvas.getContext('2d');
         
-        let modeloAI = null;
+        let modeloCoco = null;
+        let modeloPose = null;
         let localStream = null;
-        let cameraAtual = 'environment'; // Começa tentando a traseira
+        
+        let modoIAAtual = 'multi'; // 'multi' ou 'unico'
+        let cameraAtual = 'environment';
         let sistemaIniciado = false;
+        
+        let particulas = [];
+        let ultimasPosicoes = {}; // Guarda a posição anterior de cada classe para medir movimento
 
-        // Função executada ao clicar no botão inicial grande
+        const alvosPermitidos = {
+            'person': 'Humano', 'car': 'Automóvel', 'truck': 'Automóvel', 'bus': 'Automóvel',
+            'motorcycle': 'Veículo de duas rodas', 'bicycle': 'Veículo de duas rodas',
+            'dog': 'Cão', 'cat': 'Gato', 'bird': 'Pássaro'
+        };
+
+        class Particula {
+            constructor(x, y) {
+                this.x = x; this.y = y;
+                this.vx = (Math.random() - 0.5) * 5;
+                this.vy = (Math.random() - 0.5) * 5 - 1;
+                this.tamanho = Math.random() * 4 + 2;
+                this.vida = 1.0;
+                this.decaimento = Math.random() * 0.04 + 0.03;
+            }
+            atualizar() { this.x += this.vx; this.y += this.vy; this.vida -= this.decaimento; }
+            desenhar() {
+                ctx.save(); ctx.globalAlpha = this.vida; ctx.fillStyle = '#00FF00';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.tamanho, 0, Math.PI * 2); ctx.fill();
+                ctx.shadowBlur = 8; ctx.shadowColor = '#00FF00'; ctx.restore();
+            }
+        }
+
         async function acionarSistema() {
             document.getElementById('tela-inicial').style.display = 'none';
             document.getElementById('tela-carregamento').style.display = 'flex';
+            document.getElementById('texto-carregamento').innerHTML = "carregando rastreamento de Keven...<br><span style='color:#888; font-size:13px;'>Inicializando Motores Gráficos</span>";
             
             try {
-                // Carrega o modelo de detecção múltipla COCO-SSD
-                modeloAI = await cocoSsd.load();
-                
-                // Inicializa a câmera padrão
+                // Pré-carrega o modelo Multi-alvos padrão primeiro
+                modeloCoco = await cocoSsd.load();
                 await iniciarCamera(cameraAtual);
                 
-                // Transiciona a interface
                 document.getElementById('tela-carregamento').style.display = 'none';
                 video.style.display = 'block';
                 document.getElementById('mira').style.display = 'block';
@@ -114,130 +149,187 @@
                 document.getElementById('status-deteccao').style.display = 'block';
                 
                 sistemaIniciado = true;
-                processarFrame();
+                loopGeral();
             } catch (erro) {
-                alert("Falha ao carregar inteligência artificial ou acessar câmera: " + erro);
+                alert("Falha ao inicializar o sistema: " + erro);
                 document.getElementById('tela-inicial').style.display = 'flex';
                 document.getElementById('tela-carregamento').style.display = 'none';
             }
         }
 
-        // Liga a câmera desejada desligando a anterior por completo para evitar travamentos
-        async function iniciarCamera(modo) {
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
+        async function mudarModoIA(modo) {
+            fecharMenuAll();
+            if (modo === modoIAAtual) return;
+
+            if (modo === 'unico') {
+                // Alerta Customizado exigido por você antes de carregar
+                alert("AVISO: O modo Alvo Único só consegue rastrear UMA pessoa por vez e ignora qualquer animal, carro ou objeto!");
+                
+                document.getElementById('tela-carregamento').style.display = 'flex';
+                document.getElementById('texto-carregamento').innerHTML = "carregando rastreamento de Keven...<br><span style='color:#00FF00; font-size:13px;'>Ativando Rastreamento Corpóreo Único</span>";
+                
+                if (!modeloPose) {
+                    modeloPose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+                    modeloPose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5 });
+                    modeloPose.onResults(onPoseResults);
+                }
+            } else {
+                document.getElementById('tela-carregamento').style.display = 'flex';
+                document.getElementById('texto-carregamento').innerHTML = "carregando rastreamento de Keven...<br><span style='color:#00FF00; font-size:13px;'>Ativando Rastreamento Multi-Alvos</span>";
             }
-            
-            const configuracao = {
-                video: {
-                    facingMode: modo,
-                    width: { ideal: 640 },
-                    height: { ideal: 480 }
-                },
-                audio: false
-            };
-            
-            localStream = await navigator.mediaDevices.getUserMedia(configuracao);
-            video.srcObject = localStream;
-            
-            return new Promise((resolve) => {
-                video.onloadedmetadata = () => {
-                    video.play();
-                    resolve();
-                };
-            });
+
+            modoIAAtual = modo;
+            // Pequeno delay para suavizar a transição de processamento
+            setTimeout(() => { document.getElementById('tela-carregamento').style.display = 'none'; }, 1000);
         }
 
-        // Altera a câmera dinamicamente pelo menu de 3 pontinhos
+        async function iniciarCamera(modo) {
+            if (localStream) { localStream.getTracks().forEach(track => track.stop()); }
+            const configuracao = { video: { facingMode: modo, width: { ideal: 640 }, height: { ideal: 480 } }, audio: false };
+            localStream = await navigator.mediaDevices.getUserMedia(configuracao);
+            video.srcObject = localStream;
+            return new Promise((resolve) => { video.onloadedmetadata = () => { video.play(); resolve(); }; });
+        }
+
         async function mudarCamera(modo) {
             fecharMenuAll();
             if(!sistemaIniciado) return;
             cameraAtual = modo;
-            
             document.getElementById('tela-carregamento').style.display = 'flex';
             await iniciarCamera(modo);
             document.getElementById('tela-carregamento').style.display = 'none';
         }
 
-        // Loop de processamento de imagem e detecção de múltiplos alvos
-        async function processarFrame() {
-            if (video.readyState >= 2 && modeloAI) {
-                // Define as dimensões do canvas baseadas no vídeo renderizado
+        // Loop contínuo que decide qual IA rodar a cada instante
+        async function loopGeral() {
+            if (video.readyState >= 2) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
-                
-                // Realiza a detecção de múltiplos objetos na imagem
-                const predicoes = await modeloAI.detect(video);
-                
-                ctx.clearRect(0, 0, canvas.width, canvas.height);
-                
-                // Dicionário para contar o que está sendo visto no frame
-                let contagem = {};
 
-                predicoes.forEach(objeto => {
-                    // Tradução rápida dos principais alvos para português
-                    let nomeObjeto = objeto.class;
-                    if (nomeObjeto === 'person') nomeObjeto = 'Humano';
-                    else if (nomeObjeto === 'car' || nomeObjeto === 'truck' || nomeObjeto === 'bus') nomeObjeto = 'Automóvel';
-                    else if (nomeObjeto === 'dog') nomeObjeto = 'Cão';
-                    else if (nomeObjeto === 'cat') nomeObjeto = 'Gato';
-                    else if (nomeObjeto === 'bird') nomeObjeto = 'Pássaro';
-                    else if (nomeObjeto === 'motorcycle' || nomeObjeto === 'bicycle') nomeObjeto = 'Veículo de duas rodas';
+                if (modoIAAtual === 'multi' && modeloCoco) {
+                    const predicoes = await modeloCoco.detect(video);
+                    ctx.clearRect(0, 0, canvas.width, canvas.height);
                     
-                    // Incrementa contagem de itens na tela
-                    contagem[nomeObjeto] = (contagem[nomeObjeto] || 0) + 1;
+                    let contagem = {};
 
-                    // Desenha o quadrado verde ao redor de cada um dos objetos detectados
-                    const [x, y, largura, altura] = objeto.bbox;
-                    ctx.strokeStyle = '#00FF00';
-                    ctx.lineWidth = 3;
-                    ctx.strokeRect(x, y, largura, altura);
+                    predicoes.forEach(objeto => {
+                        if (alvosPermitidos[objeto.class]) {
+                            let nomeObjeto = alvosPermitidos[objeto.class];
+                            contagem[nomeObjeto] = (contagem[nomeObjeto] || 0) + 1;
 
-                    // Adiciona o texto de identificação do alvo
-                    ctx.fillStyle = '#00FF00';
-                    ctx.font = 'bold 16px monospace';
-                    ctx.fillText(`ALVO: ${nomeObjeto.toUpperCase()} (${Math.round(objeto.score * 100)}%)`, x, y > 20 ? y - 8 : y + 20);
-                });
+                            const [x, y, largura, altura] = objeto.bbox;
+                            const centroX = x + (largura / 2);
+                            const centroY = y + (altura / 2);
 
-                // Monta a string do painel inferior esquerdo
-                atualizarPainelStatus(contagem);
+                            // Desenha Retângulo do Alvo
+                            ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 3;
+                            ctx.strokeRect(x, y, largura, altura);
+
+                            // PULO DO GATO: Bola fixa no centro que acompanha o quadrado
+                            ctx.fillStyle = '#00FF00'; ctx.beginPath();
+                            ctx.arc(centroX, centroY, 6, 0, Math.PI * 2); ctx.fill();
+
+                            // Identificador em Texto
+                            ctx.font = 'bold 16px monospace';
+                            ctx.fillText(`ALVO: ${nomeObjeto.toUpperCase()}`, x, y > 20 ? y - 8 : y + 20);
+
+                            // LÓGICA DE MOVIMENTO: Bolinhas só aparecem se o centro se mover!
+                            let idHistorico = objeto.class;
+                            let posAnterior = ultimasPosicoes[idHistorico];
+                            if (posAnterior) {
+                                let distanciaMovida = Math.hypot(centroX - posAnterior.x, centroY - posAnterior.y);
+                                // Se moveu mais de 3 pixels, solta as bolinhas atrás do movimento
+                                if (distanciaMovida > 3) {
+                                    for (let i = 0; i < 4; i++) { particulas.push(new Particula(centroX, centroY)); }
+                                }
+                            }
+                            ultimasPosicoes[idHistorico] = { x: centroX, y: centroY };
+                        }
+                    });
+
+                    // Renderiza e esvazia as partículas acumuladas
+                    particulas = particulas.filter(p => p.vida > 0);
+                    particulas.forEach(p => { p.atualizar(); p.desenhar(); });
+
+                    atualizarPainelStatus(contagem);
+                } 
+                else if (modoIAAtual === 'unico' && modeloPose) {
+                    await modeloPose.send({ image: video });
+                }
             }
-            requestAnimationFrame(processarFrame);
+            requestAnimationFrame(loopGeral);
         }
 
-        // Atualiza as estatísticas no canto inferior esquerdo da tela
+        // Resposta do esqueleto (MediaPipe) executada dentro do loop global
+        function onPoseResults(results) {
+            if (modoIAAtual !== 'unico') return;
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            let contagem = {};
+
+            if (results.poseLandmarks) {
+                contagem['Humano (Alvo Único)'] = 1;
+
+                // Desenha as linhas do esqueleto clássico
+                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
+                
+                // Calcula a caixa do corpo inteiro
+                const xs = results.poseLandmarks.map(p => p.x * canvas.width);
+                const ys = results.poseLandmarks.map(p => p.y * canvas.height);
+                const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
+                const largura = maxX - minX, altura = maxY - minY;
+                const centroX = minX + (largura / 2);
+                const centroY = minY + (altura / 2);
+
+                // Desenha Único Quadrado Verde
+                ctx.strokeStyle = '#00FF00'; ctx.lineWidth = 3;
+                ctx.strokeRect(minX - 20, minY - 20, largura + 40, altura + 40);
+
+                // Bola fixa central no esqueleto
+                ctx.fillStyle = '#00FF00'; ctx.beginPath();
+                ctx.arc(centroX, centroY, 6, 0, Math.PI * 2); ctx.fill();
+
+                ctx.fillStyle = '#00FF00'; ctx.font = 'bold 16px monospace';
+                ctx.fillText("ALVO ÚNICO DETECTADO", minX - 20, minY - 30);
+
+                // Física de partículas por movimento do esqueleto
+                let posAnterior = ultimasPosicoes['pose_unico'];
+                if (posAnterior) {
+                    let dist = Math.hypot(centroX - posAnterior.x, centroY - posAnterior.y);
+                    if (dist > 3) {
+                        for (let i = 0; i < 4; i++) { particulas.push(new Particula(centroX, centroY)); }
+                    }
+                }
+                ultimasPosicoes['pose_unico'] = { x: centroX, y: centroY };
+            }
+
+            particulas = particulas.filter(p => p.vida > 0);
+            particulas.forEach(p => { p.atualizar(); p.desenhar(); });
+            atualizarPainelStatus(contagem);
+        }
+
         function atualizarPainelStatus(contagem) {
             const painel = document.getElementById('status-deteccao');
             let chaves = Object.keys(contagem);
             
             if (chaves.length === 0) {
-                painel.innerHTML = "SISTEMA ATIVO: BUSCANDO ALVOS...";
+                painel.innerHTML = modoIAAtual === 'multi' ? "SISTEMA MULTI-ALVOS: BUSCANDO..." : "ALVO ÚNICO: RASTREANDO CORPO...";
                 return;
             }
 
             let textoStatus = "DETECTANDO:<br>";
-            let linhas = chaves.map(chave => `• ${contagem[chave]} ${chave}${contagem[chave] > 1 ? 's' : ''}`);
-            painel.innerHTML = textoStatus + lines.join('<br>');
+            let linhas = chaves.map(chave => `• ${contagem[chave]} ${chave}`);
+            painel.innerHTML = textoStatus + linhas.join('<br>');
         }
 
-        // Controle da interface (Menu e Modais)
+        // Funções de Interface
         function alternarMenu() {
             const menu = document.getElementById('menu-opcoes');
             menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
         }
-
-        function fecharMenuAll() {
-            document.getElementById('menu-opcoes').style.display = 'none';
-        }
-
-        function abrirSobre() {
-            fecharMenuAll();
-            document.getElementById('modal-sobre').style.display = 'flex';
-        }
-
-        function fecharSobre() {
-            document.getElementById('modal-sobre').style.display = 'none';
-        }
+        function fecharMenuAll() { document.getElementById('menu-opcoes').style.display = 'none'; }
+        function abrirSobre() { fecharMenuAll(); document.getElementById('modal-sobre').style.display = 'flex'; }
+        function fecharSobre() { document.getElementById('modal-sobre').style.display = 'none'; }
     </script>
 </body>
 </html>
