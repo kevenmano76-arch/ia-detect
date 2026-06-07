@@ -1,75 +1,61 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Sistema de Rastreamento</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <style>
-        body { margin: 0; overflow: hidden; background: black; }
-        video { display: none; }
-        canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-        #info { position: absolute; top: 10px; left: 10px; color: #00FF00; font-family: monospace; font-size: 18px; pointer-events: none; }
+        body { margin: 0; background: black; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; overflow: hidden; }
+        /* Forçamos o vídeo a aparecer na tela */
+        #webcam { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        canvas { position: absolute; width: 100%; height: 100%; z-index: 2; }
+        .controls { position: absolute; bottom: 20px; z-index: 10; display: flex; gap: 10px; }
+        button { padding: 15px; font-size: 16px; border-radius: 10px; border: none; background: #00FF00; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="info">SISTEMA ATIVO: RASTREANDO ALVOS...</div>
     <video id="webcam" autoplay playsinline></video>
     <canvas id="output"></canvas>
+    <div class="controls">
+        <button onclick="iniciarCamera('user')">Frontal</button>
+        <button onclick="iniciarCamera('environment')">Traseira</button>
+    </div>
 
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
-
     <script>
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('output');
         const ctx = canvas.getContext('2d');
+        const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
 
-        async function start() {
-            const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
+        pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5 });
+        pose.onResults(onResults);
+
+        async function iniciarCamera(modo) {
+            const constraints = { video: { facingMode: modo } };
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
             video.srcObject = stream;
             
-            const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
-            pose.onResults(onResults);
-            
-            async function frame() {
-                await pose.send({image: video});
-                requestAnimationFrame(frame);
+            async function loop() {
+                if (video.readyState >= 2) { // HAVE_CURRENT_DATA
+                    await pose.send({image: video});
+                }
+                requestAnimationFrame(loop);
             }
-            frame();
+            loop();
         }
 
         function onResults(results) {
-            canvas.width = video.videoWidth;
+            canvas.width = video.videoWidth; 
             canvas.height = video.videoHeight;
             ctx.clearRect(0, 0, canvas.width, canvas.height);
-
+            
             if (results.poseLandmarks) {
-                // Desenha o esqueleto
                 drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
-                
-                // Calcula Quadrado (Bounding Box)
-                const xs = results.poseLandmarks.map(p => p.x);
-                const ys = results.poseLandmarks.map(p => p.y);
-                const minX = Math.min(...xs) * canvas.width;
-                const maxX = Math.max(...xs) * canvas.width;
-                const minY = Math.min(...ys) * canvas.height;
-                const maxY = Math.max(...ys) * canvas.height;
-
-                // Desenha Quadrado
-                ctx.strokeStyle = '#00FF00';
-                ctx.lineWidth = 3;
-                ctx.strokeRect(minX - 20, minY - 20, (maxX - minX) + 40, (maxY - minY) + 40);
-
-                // Distância estimada (baseada na largura dos ombros)
-                const dist = Math.abs(results.poseLandmarks[11].x - results.poseLandmarks[12].x);
-                const metros = (0.5 / dist).toFixed(1);
-                
-                // Texto na tela
-                ctx.fillStyle = '#00FF00';
-                ctx.font = '20px Arial';
-                ctx.fillText(`ALVO DETECTADO`, minX - 20, minY - 30);
-                ctx.fillText(`DISTANCIA: ${metros}m`, minX - 20, maxY + 40);
+                const xs = results.poseLandmarks.map(p => p.x * canvas.width);
+                const ys = results.poseLandmarks.map(p => p.y * canvas.height);
+                ctx.strokeRect(Math.min(...xs)-20, Math.min(...ys)-20, (Math.max(...xs)-Math.min(...xs))+40, (Math.max(...ys)-Math.min(...ys))+40);
             }
         }
-        start();
     </script>
 </body>
 </html>
