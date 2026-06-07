@@ -2,56 +2,241 @@
 <html>
 <head>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="UTF-8">
+    <title>Rastreamento Keven IA</title>
     <style>
-        body { margin: 0; background: black; display: flex; flex-direction: column; align-items: center; }
-        /* Forçamos o vídeo a ocupar a tela inteira */
-        #webcam { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; display: block; }
+        body { margin: 0; background: black; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: #00FF00; overflow: hidden; height: 100vh; }
+        
+        /* Câmera e Canvas */
+        #webcam { position: fixed; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; display: none; }
         canvas { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; }
-        .controls { position: fixed; bottom: 20px; z-index: 10; display: flex; gap: 10px; }
-        button { padding: 15px 25px; font-size: 18px; border-radius: 10px; border: none; background: #00FF00; color: black; font-weight: bold; }
+        
+        /* Tela Inicial */
+        #tela-inicial { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #050505; z-index: 100; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+        .titulo-principal { font-size: 28px; font-weight: bold; letter-spacing: 2px; text-shadow: 0 0 10px #00FF00; margin-bottom: 30px; padding: 0 20px; }
+        .btn-iniciar { padding: 18px 40px; font-size: 20px; border-radius: 30px; border: 2px solid #00FF00; background: transparent; color: #00FF00; font-weight: bold; cursor: pointer; box-shadow: 0 0 15px rgba(0,255,0,0.4); transition: 0.3s; }
+        .btn-iniciar:active { background: #00FF00; color: black; }
+
+        /* Tela de Carregamento */
+        #tela-carregamento { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 99; display: none; flex-direction: column; align-items: center; justify-content: center; }
+        .spinner { width: 60px; height: 60px; border: 5px solid #111; border-top: 5px solid #00FF00; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Interface do Menu de Três Pontinhos (...) */
+        .menu-container { position: fixed; top: 15px; right: 15px; z-index: 20; }
+        .btn-menu { background: rgba(0,0,0,0.6); border: 1px solid #00FF00; color: #00FF00; font-size: 24px; padding: 5px 15px; border-radius: 10px; cursor: pointer; font-weight: bold; }
+        .menu-opcoes { position: absolute; top: 45px; right: 0; background: rgba(10,10,10,0.95); border: 1px solid #00FF00; border-radius: 8px; display: none; flex-direction: column; min-width: 160px; box-shadow: 0 0 15px black; }
+        .menu-opcoes button { background: transparent; border: none; color: #00FF00; padding: 12px 15px; text-align: left; font-size: 16px; cursor: pointer; border-bottom: 1px solid #222; }
+        .menu-opcoes button:last-child { border-bottom: none; }
+        .menu-opcoes button:active { background: #00FF00; color: black; }
+
+        /* Central da Mira de Enfeite */
+        #mira { position: fixed; top: 50%; left: 50%; width: 120px; height: 120px; transform: translate(-50%, -50%); border: 2px dashed rgba(0, 255, 0, 0.4); border-radius: 50%; z-index: 5; pointer-events: none; display: none; }
+        #mira::before { content: ''; position: absolute; top: 50%; left: 50%; width: 10px; height: 10px; background: rgba(0, 255, 0, 0.6); border-radius: 50%; transform: translate(-50%, -50%); }
+
+        /* Indicador de Detecção Inferior */
+        #status-deteccao { position: fixed; bottom: 25px; left: 20px; background: rgba(0,0,0,0.75); padding: 12px 20px; border-radius: 8px; border-left: 4px solid #00FF00; z-index: 10; font-size: 14px; max-width: 80%; display: none; pointer-events: none; font-family: monospace; }
+
+        /* Janela Modal "Sobre Nós" */
+        #modal-sobre { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 200; display: none; align-items: center; justify-content: center; }
+        .conteudo-sobre { background: #111; border: 2px solid #00FF00; padding: 30px; border-radius: 15px; max-width: 85%; text-align: center; box-shadow: 0 0 25px rgba(0,255,0,0.3); position: relative; }
+        .conteudo-sobre h2 { margin-top: 0; text-shadow: 0 0 8px #00FF00; }
+        .conteudo-sobre p { color: #ccc; line-height: 1.6; font-size: 15px; margin-bottom: 20px; }
+        .btn-fechar { position: absolute; top: 10px; right: 15px; font-size: 24px; background: transparent; border: none; color: #FF0000; cursor: pointer; font-weight: bold; }
     </style>
 </head>
 <body>
-    <video id="webcam" autoplay playsinline></video>
-    <canvas id="output"></canvas>
-    <div class="controls">
-        <button onclick="iniciarCamera('user')">Frontal</button>
-        <button onclick="iniciarCamera('environment')">Traseira</button>
+
+    <div id="tela-inicial">
+        <div class="titulo-principal">SISTEMA AVANÇADO DE<br>RASTREAMENTO IA</div>
+        <button class="btn-iniciar" onclick="acionarSistema()">INICIAR SISTEMA</button>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/pose"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils"></script>
+    <div id="tela-carregamento">
+        <div class="spinner"></div>
+        <div style="font-size: 18px; letter-spacing: 1px;">carregando rastreamento de Keven...</div>
+    </div>
+
+    <div class="menu-container" id="container-menu" style="display: none;">
+        <button class="btn-menu" onclick="alternarMenu()">...</button>
+        <div class="menu-opcoes" id="menu-opcoes">
+            <button onclick="mudarCamera('user')">Câmera Frontal</button>
+            <button onclick="mudarCamera('environment')">Câmera Traseira</button>
+            <button onclick="abrirSobre()">Sobre Nós</button>
+        </div>
+    </div>
+
+    <video id="webcam" autoplay playsinline mute></video>
+    <canvas id="output"></canvas>
+    <div id="mira"></div>
+
+    <div id="status-deteccao" id="status-texto">Aguardando dados...</div>
+
+    <div id="modal-sobre">
+        <div class="conteudo-sobre">
+            <button class="btn-fechar" onclick="fecharSobre()">×</button>
+            <h2>Sobre o Projeto</h2>
+            <p>A origem deste sistema de rastreamento é de <strong>Keven Manuel</strong>.</p>
+            <p>Desenvolvido como um rastreamento feito com inteligência artificial precisa de última geração, capaz de identificar simultaneamente múltiplos alvos, incluindo humanos, veículos, animais e objetos comuns em tempo real diretamente pelo navegador.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd"></script>
+
     <script>
         const video = document.getElementById('webcam');
         const canvas = document.getElementById('output');
         const ctx = canvas.getContext('2d');
-        const pose = new Pose({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/pose/${file}`});
+        
+        let modeloAI = null;
+        let localStream = null;
+        let cameraAtual = 'environment'; // Começa tentando a traseira
+        let sistemaIniciado = false;
 
-        pose.setOptions({ modelComplexity: 1, smoothLandmarks: true, minDetectionConfidence: 0.5 });
-        pose.onResults(results => {
-            canvas.width = video.videoWidth; 
-            canvas.height = video.videoHeight;
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (results.poseLandmarks) {
-                drawConnectors(ctx, results.poseLandmarks, POSE_CONNECTIONS, {color: '#00FF00', lineWidth: 4});
-                const xs = results.poseLandmarks.map(p => p.x * canvas.width);
-                const ys = results.poseLandmarks.map(p => p.y * canvas.height);
-                ctx.strokeStyle = '#00FF00';
-                ctx.strokeRect(Math.min(...xs)-30, Math.min(...ys)-30, (Math.max(...xs)-Math.min(...xs))+60, (Math.max(...ys)-Math.min(...ys))+60);
-            }
-        });
-
-        async function iniciarCamera(modo) {
+        // Função executada ao clicar no botão inicial grande
+        async function acionarSistema() {
+            document.getElementById('tela-inicial').style.display = 'none';
+            document.getElementById('tela-carregamento').style.display = 'flex';
+            
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: modo } });
-                video.srcObject = stream;
-                video.play();
-                async function frame() {
-                    if (video.readyState >= 2) await pose.send({image: video});
-                    requestAnimationFrame(frame);
-                }
-                frame();
-            } catch (e) { alert("Erro de acesso à câmera: " + e); }
+                // Carrega o modelo de detecção múltipla COCO-SSD
+                modeloAI = await cocoSsd.load();
+                
+                // Inicializa a câmera padrão
+                await iniciarCamera(cameraAtual);
+                
+                // Transiciona a interface
+                document.getElementById('tela-carregamento').style.display = 'none';
+                video.style.display = 'block';
+                document.getElementById('mira').style.display = 'block';
+                document.getElementById('container-menu').style.display = 'block';
+                document.getElementById('status-deteccao').style.display = 'block';
+                
+                sistemaIniciado = true;
+                processarFrame();
+            } catch (erro) {
+                alert("Falha ao carregar inteligência artificial ou acessar câmera: " + erro);
+                document.getElementById('tela-inicial').style.display = 'flex';
+                document.getElementById('tela-carregamento').style.display = 'none';
+            }
+        }
+
+        // Liga a câmera desejada desligando a anterior por completo para evitar travamentos
+        async function iniciarCamera(modo) {
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            
+            const configuracao = {
+                video: {
+                    facingMode: modo,
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                },
+                audio: false
+            };
+            
+            localStream = await navigator.mediaDevices.getUserMedia(configuracao);
+            video.srcObject = localStream;
+            
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    video.play();
+                    resolve();
+                };
+            });
+        }
+
+        // Altera a câmera dinamicamente pelo menu de 3 pontinhos
+        async function mudarCamera(modo) {
+            fecharMenuAll();
+            if(!sistemaIniciado) return;
+            cameraAtual = modo;
+            
+            document.getElementById('tela-carregamento').style.display = 'flex';
+            await iniciarCamera(modo);
+            document.getElementById('tela-carregamento').style.display = 'none';
+        }
+
+        // Loop de processamento de imagem e detecção de múltiplos alvos
+        async function processarFrame() {
+            if (video.readyState >= 2 && modeloAI) {
+                // Define as dimensões do canvas baseadas no vídeo renderizado
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Realiza a detecção de múltiplos objetos na imagem
+                const predicoes = await modeloAI.detect(video);
+                
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                // Dicionário para contar o que está sendo visto no frame
+                let contagem = {};
+
+                predicoes.forEach(objeto => {
+                    // Tradução rápida dos principais alvos para português
+                    let nomeObjeto = objeto.class;
+                    if (nomeObjeto === 'person') nomeObjeto = 'Humano';
+                    else if (nomeObjeto === 'car' || nomeObjeto === 'truck' || nomeObjeto === 'bus') nomeObjeto = 'Automóvel';
+                    else if (nomeObjeto === 'dog') nomeObjeto = 'Cão';
+                    else if (nomeObjeto === 'cat') nomeObjeto = 'Gato';
+                    else if (nomeObjeto === 'bird') nomeObjeto = 'Pássaro';
+                    else if (nomeObjeto === 'motorcycle' || nomeObjeto === 'bicycle') nomeObjeto = 'Veículo de duas rodas';
+                    
+                    // Incrementa contagem de itens na tela
+                    contagem[nomeObjeto] = (contagem[nomeObjeto] || 0) + 1;
+
+                    // Desenha o quadrado verde ao redor de cada um dos objetos detectados
+                    const [x, y, largura, altura] = objeto.bbox;
+                    ctx.strokeStyle = '#00FF00';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(x, y, largura, altura);
+
+                    // Adiciona o texto de identificação do alvo
+                    ctx.fillStyle = '#00FF00';
+                    ctx.font = 'bold 16px monospace';
+                    ctx.fillText(`ALVO: ${nomeObjeto.toUpperCase()} (${Math.round(objeto.score * 100)}%)`, x, y > 20 ? y - 8 : y + 20);
+                });
+
+                // Monta a string do painel inferior esquerdo
+                atualizarPainelStatus(contagem);
+            }
+            requestAnimationFrame(processarFrame);
+        }
+
+        // Atualiza as estatísticas no canto inferior esquerdo da tela
+        function atualizarPainelStatus(contagem) {
+            const painel = document.getElementById('status-deteccao');
+            let chaves = Object.keys(contagem);
+            
+            if (chaves.length === 0) {
+                painel.innerHTML = "SISTEMA ATIVO: BUSCANDO ALVOS...";
+                return;
+            }
+
+            let textoStatus = "DETECTANDO:<br>";
+            let linhas = chaves.map(chave => `• ${contagem[chave]} ${chave}${contagem[chave] > 1 ? 's' : ''}`);
+            painel.innerHTML = textoStatus + lines.join('<br>');
+        }
+
+        // Controle da interface (Menu e Modais)
+        function alternarMenu() {
+            const menu = document.getElementById('menu-opcoes');
+            menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+        }
+
+        function fecharMenuAll() {
+            document.getElementById('menu-opcoes').style.display = 'none';
+        }
+
+        function abrirSobre() {
+            fecharMenuAll();
+            document.getElementById('modal-sobre').style.display = 'flex';
+        }
+
+        function fecharSobre() {
+            document.getElementById('modal-sobre').style.display = 'none';
         }
     </script>
 </body>
